@@ -9,6 +9,11 @@ class DetectVirtualIpStates(Service):
     @private
     async def get_states(self, interfaces=None):
 
+        masters, backups, inits = [], [], []
+
+        if not await self.middleware.call('failover.allow_failover_traffic'):
+            return masters, backups, inits
+
         if interfaces is None:
             interfaces = await self.middleware.call('interface.query')
 

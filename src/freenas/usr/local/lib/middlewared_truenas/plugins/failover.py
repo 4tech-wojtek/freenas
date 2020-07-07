@@ -1460,9 +1460,9 @@ async def hook_license_update(middleware, *args, **kwargs):
             await middleware.call('failover.send_small_file', '/data/license')
             await middleware.call('failover.call_remote', 'failover.ensure_remote_client')
             for etc in etc_generate:
-                await middleware.call('falover.call_remote', 'etc.generate', [etc])
-        except Exception:
-            middleware.logger.warning('Failed to sync license file to standby.')
+                await middleware.call('failover.call_remote', 'etc.generate', [etc])
+        except Exception as e:
+            middleware.logger.warning(f'Failed to sync license file to standby with error: {e}')
     await middleware.call('service.restart', 'failover')
     await middleware.call('failover.status_refresh')
 
@@ -1494,9 +1494,6 @@ async def hook_setup_ha(middleware, *args, **kwargs):
     if not await middleware.call('interface.query', [('failover_vhid', '!=', None)]):
         return
 
-    if not await middleware.call('pool.query'):
-        return
-
     # If we have reached this stage make sure status is up to date
     await middleware.call('failover.status_refresh')
 
@@ -1511,13 +1508,9 @@ async def hook_setup_ha(middleware, *args, **kwargs):
         # If HA is already configured just sync network
         if await middleware.call('failover.status') == 'MASTER':
 
-            # We have to restart the failover service so that we regenerate
-            # the /tmp/failover.json file on active/standby controller
-            middleware.logger.debug('[HA] Regenerating /tmp/failover.json')
-            await middleware.call('service.restart', 'failover')
-
             middleware.logger.debug('[HA] Configuring network on standby node')
             await middleware.call('failover.call_remote', 'interface.sync')
+
         return
 
     middleware.logger.info('[HA] Setting up')
@@ -1528,10 +1521,13 @@ async def hook_setup_ha(middleware, *args, **kwargs):
     middleware.logger.debug('[HA] Configuring network on standby node')
     await middleware.call('failover.call_remote', 'interface.sync')
 
-    middleware.logger.debug('[HA] Restarting devd to enable failover')
-    await middleware.call('failover.call_remote', 'service.restart', ['failover'])
+    middleware.logger.debug('[HA] Restarting failover service on this node')
     await middleware.call('service.restart', 'failover')
 
+    middleware.logger.debug('[HA] Restarting failover service on remote node')
+    await middleware.call('failover.call_remote', 'service.restart', ['failover'])
+
+    middleware.logger.debug('[HA] Resfreshing failover status')
     await middleware.call('failover.status_refresh')
 
     middleware.logger.info('[HA] Setup complete')

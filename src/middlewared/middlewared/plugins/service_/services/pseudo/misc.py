@@ -44,12 +44,13 @@ class DiskService(PseudoServiceBase):
 class FailoverService(PseudoServiceBase):
     name = "failover"
 
-    etc = ["failover"]
     restartable = True
 
     async def restart(self):
         if osc.IS_FREEBSD:
+            await self.middleware.call('etc.generate', 'pf')
             await freebsd_service("devd", "restart")
+            await freebsd_service("ix-haready", "start")
 
         # FIXME: Linux
 

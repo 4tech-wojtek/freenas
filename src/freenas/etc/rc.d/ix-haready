@@ -22,7 +22,11 @@ haready_start()
 {
 	# Tell CARP to start allowing and advertising CARP/VRRP packets.
 	# See #28198 for one of the reasons why this is required.
-	/sbin/sysctl net.inet.carp.allow=1
+	allowed=$(/usr/local/bin/midclt call failover.allow_failover_traffic)
+
+	if [ "$allowed" = "True" ]; then
+		/sbin/sysctl net.inet.carp.allow=1
+	fi
 }
 
 haready_stop()
