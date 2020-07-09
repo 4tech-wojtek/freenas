@@ -194,7 +194,27 @@ class FailoverService(Service):
                                 break
                         if masterret is False:
                             # All pools are already imported
-                            self.logger.warn('All pools already imported, ignoring.')
+                            self.logger.warning('All pools already imported, ignoring.')
+
+                            # We still need to send database and run interface.sync at this point.
+                            # We will get here if an ALIAS is being added to interface and that
+                            # interface has already been configured with a CARP address and is in the
+                            # MASTER state.
+
+                            # Adding an ALIAS to the interface will generate another failover event but
+                            # since the zpool is already imported, we return too early which prevents the
+                            # ALIAS that is being configured to be sent to the standby controller.
+
+                            # Without this, the ALIAS will only be configured on the MASTER controller which
+                            # will generate an alert message stating CARP states don't agree.
+
+                            # The inverse of adding (deleting) is also true but it will actually cause an outage
+                            # because the ALIAS will be removed from the MASTER controller but not the standby
+                            # controller which means the standby will take over as MASTER (as expected). However,
+                            # this causes an unfortunate scenario because HA has to be disabled before making changes
+                            # so a failover event will not occur.
+                            self.run_call('failover.send_database')
+                            self.run_call('failover.call_remote', 'interface.sync')
                             return
 
             open(HEARTBEAT_BARRIER, 'a+').close()
