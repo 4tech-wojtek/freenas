@@ -12,6 +12,9 @@ ZFS_MODULE_PARAMS_PATH = '/sys/module/zfs/parameters'
 
 class SysctlService(Service, SysctlInfoBase):
 
+    class Config:
+        private = True
+
     async def get_value(self, sysctl_name):
         cp = await run(['sysctl', sysctl_name], check=False)
         if cp.returncode:
